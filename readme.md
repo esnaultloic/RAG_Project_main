@@ -1,12 +1,46 @@
-🚀 RAG-CV-Assistant : Interrogation de CV (LlamaIndex + Gemini)Ce projet est un système de Generation Augmentée par la Récupération (RAG) conçu pour répondre à des questions sur un document (CV au format PDF ou autre) en utilisant l'Intelligence Artificielle.Il utilise LlamaIndex pour l'ingestion de données et la structuration du RAG, ChromaDB pour la persistance vectorielle, et les modèles Google Gemini pour l'embedding et la génération de la réponse finale.🌟 ObjectifL'objectif principal est de créer un agent intelligent capable de lire, comprendre, et synthétiser les informations d'un CV (ou tout autre document) pour répondre à des requêtes précises, en s'assurant que la réponse soit toujours ancrée dans le contenu du document fourni.🏗️ Architecture et TechnologiesComposantTechnologieRôleFramework RAGllama_indexGère le pipeline complet : chargement, indexation, et requête.LLM (Génération)GoogleGenAI (Gemini 2.5 Flash)Fournit la réponse finale, basée sur les chunks récupérés.Modèle d'EmbeddingGoogleGenAIEmbedding (text-embedding-004)Transforme le texte en vecteurs pour la recherche sémantique.Base de Données VectorielleChromaDB (PersistentClient)Stocke l'index vectoriel de manière persistante sur disque (./chroma_db).Configurationpython-dotenvCharge la clé d'API (GEMINI_API_KEY) depuis un fichier .env.🛠️ Configuration et DémarragePré-requis : Python 3.9+Installation des dépendances :Bashpip install llama-index llama-index-llms-google-genai llama-index-embeddings-google-genai llama-index-vector-stores-chroma chromadb python-dotenv
-Clé d'API :Créez un fichier nommé .env à la racine du projet et insérez votre clé d'API Google Gemini :GEMINI_API_KEY="VOTRE_CLE_API_ICI"
-Dossier des données :Créez un dossier nommé data/ et placez votre CV (e.g., mon_cv.pdf) à l'intérieur.Exécution :Bashpython your_script_name.py
-🧠 État Actuel du Code (your_script_name.py)Le script est un pipeline RAG complet et fonctionnel, structuré autour de deux fonctions principales :1. setup_rag_index(data_dir: str = "data")Rôle : Initialise la base de données ChromaDB (./chroma_db) et l'index RAG.Logique de Persistance :Le code vérifie d'abord si la collection cv_rag_collection existe déjà dans ChromaDB.Si elle existe (Loading existing collection), l'index est chargé sans re-traiter le document.Si elle n'existe pas (Creating and indexing new collection), les documents dans data/ sont lus, l'index est créé, et les vecteurs sont sauvegardés dans ChromaDB.2. query_rag(prompt: str) -> strRôle : Effectue une recherche vectorielle dans l'index (récupération) puis génère une réponse (génération) à l'aide de Gemini, en s'appuyant uniquement sur les morceaux de texte pertinents du CV (RAG).Configuration : Utilise similarity_top_k=3 pour récupérer les 3 meilleurs chunks de contexte.⚠️ Problème Actuel et Résultat (Pour Cursor)Lors du test d'exécution, le pipeline se connecte correctement à la base de données existante mais retourne une réponse vide (Empty Response) lors de la requête de test.Résultat de l'exécution :Loading existing collection: cv_rag_collection
+🚀 CV RAG Assistant (LlamaIndex + Gemini)
 
-[Test Query]: Quel est mon dernier poste et quelles étaient mes principales responsabilités ?
+Assistant RAG déployé qui répond aux questions des recruteurs à partir de documents PDF (CV + formation/certifications). Le système utilise LlamaIndex (pipeline RAG), ChromaDB (vecteurs persistants) et Google Gemini (embeddings + génération).
 
-==================================================
-[RAG Response]:
-Empty Response
-==================================================
-Pistes de Débogage / Prochaines Étapes :Vérification de l'Index : S'assurer que les documents ont été correctement chargés et que des vecteurs existent dans la collection ChromaDB. Le problème pourrait venir d'un index corrompu ou vide.Affichage de la Récupération : Modifier temporairement query_rag pour afficher les chunks de contexte récupérés par LlamaIndex avant la génération LLM. Cela permet de confirmer si la première étape (Retrieval) fonctionne.Taille des Chunks : Tester l'indexation avec une configuration de chunk_size et chunk_overlap personnalisée dans Settings.node_parser pour améliorer la pertinence des morceaux de texte récupérés.
+### Caractéristiques
+- Récupération sémantique sur les PDF placés dans `data/`
+- LLM: Gemini 2.5 Flash, Embeddings: text-embedding-004
+- Stockage: ChromaDB (dossier `./chroma_db`)
+- Application Web: Streamlit (`app.py`)
+- Top-k fixé à 4 pour des réponses robustes
+
+### Variables d’environnement
+Créer un fichier `.env` à la racine:
+```
+GEMINI_API_KEY="VOTRE_CLE_API"
+```
+
+### Lancer en local (optionnel)
+```
+pip install -r requirements.txt
+py -m streamlit run app.py
+```
+Ou:
+```
+python -m streamlit run app.py
+```
+
+### Déploiement
+- Streamlit Cloud: connectez le dépôt, définissez la variable `GEMINI_API_KEY`, ciblez `app.py`. L’app reste accessible en ligne sans lancer de commande locale.
+- Heroku/Render (alternatif): `Procfile` fourni (`web: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0`). Pensez à configurer `GEMINI_API_KEY` côté plateforme.
+
+### Structure principale
+- `rag_pipeline.py`:
+  - `setup_rag_index()`: crée/charge l’index RAG (chunking via `SentenceSplitter`, ChromaDB persistant)
+  - `query_rag(prompt, ..., similarity_top_k=4)`: interroge l’index et génère la réponse
+- `app.py`: interface Streamlit épurée adaptée aux recruteurs
+- `data/`: placez vos PDF (CV, formation, certifications)
+
+### Utilisation
+1) Placez vos PDF dans `data/`
+2) Ouvrez l’app (déployée ou locale) et posez votre question
+3) La réponse est ancrée dans le contenu des documents
+
+### Notes
+- L’app est pensée pour un usage public; aucune option technique n’est exposée.
+- Si vous mettez à jour les documents, redéployez ou relancez l’app pour reconstruire l’index si nécessaire.
