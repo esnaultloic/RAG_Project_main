@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-# Load env early (for local runs)
+# Chargement des variables d'environnement tôt (pour les exécutions locales)
 load_dotenv()
 
 st.set_page_config(page_title="Loïc Esnault — Data Scientist / AI Engineer", page_icon="📄", layout="centered")
@@ -10,13 +10,13 @@ st.set_page_config(page_title="Loïc Esnault — Data Scientist / AI Engineer", 
 st.title("Loïc Esnault — Data Scientist / AI Engineer")
 st.caption("Posez une question sur mon profil. Les réponses sont ancrées dans mon CV indexé (RAG).")
 
-# Import after env load so that rag_pipeline picks up keys
+# Import après le chargement de l'environnement pour que rag_pipeline récupère les clés
 from rag_pipeline import setup_rag_index, query_rag, get_collection_count
 
 
 @st.cache_resource(show_spinner=True)
 def get_index():
-    # Do not force reindex in app; persist existing collection
+    # Ne pas forcer la réindexation dans l'app; conserver la collection existante
     return setup_rag_index()
 
 

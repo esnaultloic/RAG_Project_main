@@ -4,58 +4,58 @@ from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
-from llama_index.vector_stores.chroma import ChromaVectorStore # <-- Make sure this is present
+from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
-from dotenv import load_dotenv # <--- New Import
+from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv() # <--- New line at the start of the script
+# Chargement des variables d'environnement depuis le fichier .env
+load_dotenv()
 
 # --- Configuration ---
-# Your Gemini API Key must be set as an environment variable (GEMINI_API_KEY)
+# La clé API Gemini doit être définie comme variable d'environnement (GEMINI_API_KEY)
 gemini_key = os.getenv("GEMINI_API_KEY")
 if not gemini_key:
     raise ValueError("GEMINI_API_KEY environment variable not found.")
 
-# LlamaIndex's GoogleGenAI expects GOOGLE_API_KEY if not provided explicitly. Ensure mapping.
+# GoogleGenAI de LlamaIndex attend GOOGLE_API_KEY si non fournie explicitement. Assurer le mapping.
 os.environ.setdefault("GOOGLE_API_KEY", gemini_key)
 
-# Define the models we want to use
+# Définition des modèles à utiliser
 LLM_MODEL = "gemini-2.5-flash"
 EMBED_MODEL = "text-embedding-004"
 COLLECTION_NAME = "cv_rag_collection"
 
-# Configure chunking for better retrieval on CVs
+# Configuration du chunking pour une meilleure récupération sur les CV
 Settings.node_parser = SentenceSplitter(chunk_size=800, chunk_overlap=120)
 
-# Initialize the LLM and Embedding Model (pass key explicitly for robustness)
+# Initialisation du LLM et du modèle d'embedding (passage explicite de la clé pour robustesse)
 Settings.llm = GoogleGenAI(model=LLM_MODEL, api_key=gemini_key)
 Settings.embed_model = GoogleGenAIEmbedding(model=EMBED_MODEL, api_key=gemini_key)
 
-# ChromaDB Setup
-db = chromadb.PersistentClient(path="./chroma_db") # Stores the database locally in a folder
+# Configuration ChromaDB
+db = chromadb.PersistentClient(path="./chroma_db")  # Stocke la base de données localement dans un dossier
 CHROMA_COLLECTION_REF = None
 
 def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
     """
-    Loads documents from the data directory and creates/loads the RAG index.
+    Charge les documents du répertoire data et crée/charge l'index RAG.
     """
     try:
-        # Get the list of existing collection names
+        # Récupération de la liste des noms de collections existantes
         existing_collections = [c.name for c in db.list_collections()]
         
-        # Check if the collection already exists
+        # Vérification si la collection existe déjà
         if COLLECTION_NAME in existing_collections and not force_reindex:
-            # Use get_collection to retrieve the existing collection object
+            # Utilisation de get_collection pour récupérer l'objet collection existant
             chroma_collection = db.get_collection(COLLECTION_NAME)
             globals()["CHROMA_COLLECTION_REF"] = chroma_collection
-            # Validate collection has embeddings/documents
+            # Validation que la collection contient des embeddings/documents
             try:
                 count = chroma_collection.count()
             except Exception:
                 count = 0
             if count == 0:
-                print(f"Existing collection '{COLLECTION_NAME}' is empty. Rebuilding index...")
+                print(f"La collection existante '{COLLECTION_NAME}' est vide. Reconstruction de l'index...")
                 db.delete_collection(COLLECTION_NAME)
                 chroma_collection = db.get_or_create_collection(COLLECTION_NAME)
                 globals()["CHROMA_COLLECTION_REF"] = chroma_collection
@@ -63,42 +63,42 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
                 documents = SimpleDirectoryReader(input_dir=data_dir).load_data()
                 index = VectorStoreIndex.from_documents(documents, vector_store=vector_store)
             else:
-                print(f"Loading existing collection: {COLLECTION_NAME} (documents: {count})")
+                print(f"Chargement de la collection existante: {COLLECTION_NAME} (documents: {count})")
                 vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
                 index = VectorStoreIndex.from_vector_store(vector_store)
             
         else:
             if force_reindex and COLLECTION_NAME in existing_collections:
-                print(f"Force reindex enabled. Deleting existing collection: {COLLECTION_NAME}")
+                print(f"Réindexation forcée activée. Suppression de la collection existante: {COLLECTION_NAME}")
                 db.delete_collection(COLLECTION_NAME)
-            print(f"Creating and indexing new collection: {COLLECTION_NAME}")
+            print(f"Création et indexation de la nouvelle collection: {COLLECTION_NAME}")
             
-            # 1. Load Data
+            # 1. Chargement des données
             documents = SimpleDirectoryReader(input_dir=data_dir).load_data()
             
-            # 2. Setup ChromaDB Vector Store
-            # Use get_or_create_collection for robustness
+            # 2. Configuration du Vector Store ChromaDB
+            # Utilisation de get_or_create_collection pour robustesse
             chroma_collection = db.get_or_create_collection(COLLECTION_NAME)
             globals()["CHROMA_COLLECTION_REF"] = chroma_collection
             vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
             
-            # 3. Create Index
+            # 3. Création de l'index
             index = VectorStoreIndex.from_documents(
                 documents,
                 vector_store=vector_store
             )
             
-        # Return the index object, whether it was loaded or created
+        # Retour de l'objet index, qu'il ait été chargé ou créé
         return index
 
     except Exception as e:
-        print(f"An error occurred during index setup: {e}")
+        print(f"Une erreur s'est produite lors de la configuration de l'index: {e}")
         return None
 
 
 def get_collection_count() -> int:
-    """Return number of items stored in the Chroma collection.
-    Tries count(); if zero, falls back to fetching ids to avoid driver issues.
+    """Retourne le nombre d'éléments stockés dans la collection Chroma.
+    Essaie count(); si zéro, utilise un fallback en récupérant les ids pour éviter les problèmes de driver.
     """
     try:
         chroma_collection = globals().get("CHROMA_COLLECTION_REF")
@@ -112,7 +112,7 @@ def get_collection_count() -> int:
             cnt = 0
         if cnt > 0:
             return cnt
-        # Fallbacks
+        # Méthodes de secours
         try:
             peeked = chroma_collection.peek(limit=10000)
             ids = peeked.get("ids") or []
@@ -129,29 +129,29 @@ def get_collection_count() -> int:
     except Exception:
         return 0
 
-# Create the 'data' directory if it doesn't exist
+# Création du répertoire 'data' s'il n'existe pas
 os.makedirs("data", exist_ok=True)
-print("Place your CV file (e.g., my_cv.pdf) inside the 'data' folder.")
+print("Placez votre fichier CV (ex: my_cv.pdf) dans le dossier 'data'.")
 
-# The index is set up once when the application starts (may be overridden by CLI)
+# L'index est configuré une fois au démarrage de l'application (peut être surchargé par CLI)
 RAG_INDEX = None
 
 def query_rag(prompt: str, show_context: bool = True, index=None, similarity_top_k: int = 5) -> str:
     """
-    Queries the RAG index and gets a response grounded in the CV document.
+    Interroge l'index RAG et obtient une réponse ancrée dans le document CV.
     
-    :param prompt: The user's question.
-    :return: The LLM's grounded response.
+    :param prompt: La question de l'utilisateur.
+    :return: La réponse du LLM ancrée dans le document.
     """
-    # Prefer provided index; fallback to global; last resort, try to initialize
+    # Préférer l'index fourni; sinon utiliser le global; en dernier recours, essayer d'initialiser
     active_index = index or RAG_INDEX
     if active_index is None:
         active_index = setup_rag_index()
     if active_index is None:
-        return "RAG system failed to initialize. Please check the setup and API key."
+        return "Le système RAG a échoué à s'initialiser. Veuillez vérifier la configuration et la clé API."
     
-    # Create the query engine from the index
-    # We use 'as_query_engine' to handle the retrieval and generation automatically
+    # Création du moteur de requête à partir de l'index
+    # Utilisation de 'as_query_engine' pour gérer automatiquement la récupération et la génération
     query_engine = active_index.as_query_engine(
         similarity_top_k=similarity_top_k,
     )
@@ -159,32 +159,32 @@ def query_rag(prompt: str, show_context: bool = True, index=None, similarity_top
     try:
         response = query_engine.query(prompt)
         if show_context:
-            print("\n--- Retrieved Chunks (debug) ---")
+            print("\n--- Chunks récupérés (debug) ---")
             for i, node in enumerate(getattr(response, "source_nodes", []) or [], start=1):
                 text = getattr(node, "text", "")
                 score = getattr(node, "score", None)
                 print(f"[{i}] score={score}\n{text[:600]}\n")
-            print("--- End Retrieved Chunks ---\n")
+            print("--- Fin des chunks récupérés ---\n")
         return str(response)
     except Exception as e:
-        return f"An error occurred during query: {e}"
+        return f"Une erreur s'est produite pendant la requête: {e}"
 
-# --- Example Usage (Self-Testing) ---
+# --- Exemple d'utilisation (Auto-test) ---
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="RAG CV Assistant")
-    parser.add_argument("--reindex", action="store_true", help="Force reindexing the Chroma collection")
+    parser = argparse.ArgumentParser(description="Assistant RAG CV")
+    parser.add_argument("--reindex", action="store_true", help="Forcer la réindexation de la collection Chroma")
     parser.add_argument("--question", type=str, default="Quel est mon dernier poste et quelles étaient mes principales responsabilités ?", help="Question à poser au RAG")
     args = parser.parse_args()
 
-    # Initialize index with optional force reindex
+    # Initialisation de l'index avec réindexation forcée optionnelle
     RAG_INDEX = setup_rag_index(force_reindex=args.reindex)
 
     if RAG_INDEX:
         test_prompt = args.question
-        print(f"\n[Test Query]: {test_prompt}")
+        print(f"\n[Requête de test]: {test_prompt}")
         response = query_rag(test_prompt, show_context=True)
         print("\n" + "="*50)
-        print(f"[RAG Response]:\n{response}")
+        print(f"[Réponse RAG]:\n{response}")
         print("="*50)
     else:
-        print("\nPipeline setup failed. Cannot run test query.")
+        print("\nÉchec de la configuration du pipeline. Impossible d'exécuter la requête de test.")
