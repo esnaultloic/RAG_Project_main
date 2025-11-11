@@ -10,10 +10,20 @@ Assistant RAG déployé qui répond aux questions des recruteurs à partir de do
 - Top-k fixé à 4 pour des réponses robustes
 
 ### Variables d’environnement
-Créer un fichier `.env` à la racine:
+
+**Pour le développement local :**
+Créer un fichier `.env` à la racine (ce fichier est ignoré par Git) :
 ```
 GEMINI_API_KEY="VOTRE_CLE_API"
 ```
+
+**Pour Streamlit Cloud :**
+1. Allez dans les paramètres de votre app Streamlit Cloud
+2. Section "Secrets" → ajoutez :
+   ```toml
+   GEMINI_API_KEY = "votre_cle_api"
+   ```
+3. Redéployez l'app
 
 ### Lancer en local (optionnel)
 ```
