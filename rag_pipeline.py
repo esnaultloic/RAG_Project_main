@@ -21,9 +21,6 @@ if not gemini_key:
 # GoogleGenAI de LlamaIndex attend GOOGLE_API_KEY si non fournie explicitement. Assurer le mapping.
 os.environ.setdefault("GOOGLE_API_KEY", gemini_key)
 
-# Configure Google Generative AI directly
-genai.configure(api_key=gemini_key)
-
 # Définition des modèles à utiliser
 LLM_MODEL = "gemini-2.5-flash"
 EMBED_MODEL = "models/embedding-001"  # Correct model name for Google API
@@ -36,15 +33,17 @@ Settings.node_parser = SentenceSplitter(chunk_size=800, chunk_overlap=120)
 class GoogleGenAIDirectEmbedding(BaseEmbedding):
     """Direct embedding using google.genai to bypass llama-index model name bug"""
     
-    def __init__(self, model_name: str = "models/embedding-001", **kwargs):
+    def __init__(self, model_name: str = "models/embedding-001", api_key: str = None, **kwargs):
         super().__init__(**kwargs)
         self.model_name = model_name
+        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
     
     def _get_query_embedding(self, query: str):
         """Get embedding for a single query"""
         result = genai.embed_content(
             model=self.model_name,
-            content=query
+            content=query,
+            api_key=self.api_key
         )
         return result['embedding']
     
@@ -52,7 +51,8 @@ class GoogleGenAIDirectEmbedding(BaseEmbedding):
         """Get embedding for a single text"""
         result = genai.embed_content(
             model=self.model_name,
-            content=text
+            content=text,
+            api_key=self.api_key
         )
         return result['embedding']
     
@@ -66,7 +66,7 @@ class GoogleGenAIDirectEmbedding(BaseEmbedding):
 
 # Initialisation du LLM et du modèle d'embedding CUSTOM (bypass llama-index bug)
 Settings.llm = GoogleGenAI(model=LLM_MODEL, api_key=gemini_key)
-Settings.embed_model = GoogleGenAIDirectEmbedding(model_name=EMBED_MODEL)
+Settings.embed_model = GoogleGenAIDirectEmbedding(model_name=EMBED_MODEL, api_key=gemini_key)
 
 # Configuration ChromaDB
 db = chromadb.PersistentClient(path="./chroma_db")  # Stocke la base de données localement dans un dossier
