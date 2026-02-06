@@ -7,7 +7,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
 from dotenv import load_dotenv
-import google.generativeai as genai
+import google.genai as genai
 
 # Chargement des variables d'environnement depuis le fichier .env
 load_dotenv()
@@ -34,7 +34,7 @@ Settings.node_parser = SentenceSplitter(chunk_size=800, chunk_overlap=120)
 
 # Custom embedding class using Google Generative AI directly (bypasses llama-index bug)
 class GoogleGenAIDirectEmbedding(BaseEmbedding):
-    """Direct embedding using google.generativeai to bypass llama-index model name bug"""
+    """Direct embedding using google.genai to bypass llama-index model name bug"""
     
     def __init__(self, model_name: str = "models/embedding-001", **kwargs):
         super().__init__(**kwargs)
@@ -42,13 +42,19 @@ class GoogleGenAIDirectEmbedding(BaseEmbedding):
     
     def _get_query_embedding(self, query: str):
         """Get embedding for a single query"""
-        response = genai.embed_content(model=self.model_name, content=query)
-        return response['embedding']
+        result = genai.embed_content(
+            model=self.model_name,
+            content=query
+        )
+        return result['embedding']
     
     def _get_text_embedding(self, text: str):
         """Get embedding for a single text"""
-        response = genai.embed_content(model=self.model_name, content=text)
-        return response['embedding']
+        result = genai.embed_content(
+            model=self.model_name,
+            content=text
+        )
+        return result['embedding']
     
     async def _aget_query_embedding(self, query: str):
         """Async version (same as sync for now)"""
