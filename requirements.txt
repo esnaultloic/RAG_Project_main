@@ -1,9 +1,8 @@
 streamlit
 llama-index
-llama-index-llms-google-genai
-llama-index-embeddings-google-genai
+llama-index-llms-google-genai>=0.2.0
+llama-index-embeddings-google-genai>=0.2.0
 llama-index-vector-stores-chroma
 chromadb
 python-dotenv
 pypdf
-
