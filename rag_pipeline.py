@@ -22,7 +22,7 @@ os.environ.setdefault("GOOGLE_API_KEY", gemini_key)
 
 # Définition des modèles à utiliser
 LLM_MODEL = "gemini-2.5-flash"
-EMBED_MODEL = "text-embedding-001"
+EMBED_MODEL = "gemini-embedding-001"
 COLLECTION_NAME = "cv_rag_collection"
 
 # Configuration du chunking pour une meilleure récupération sur les CV
