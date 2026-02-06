@@ -78,15 +78,9 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
     """
     Charge les documents du répertoire data et crée/charge l'index RAG.
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
-        logger.info(f"Starting RAG index setup with embed_model={EMBED_MODEL}")
-        
         # Récupération de la liste des noms de collections existantes
         existing_collections = [c.name for c in db.list_collections()]
-        logger.info(f"Existing collections: {existing_collections}")
         
         # FORCE REINDEX: Delete old collection to ensure compatibility with new embedding model
         # This prevents using old embeddings with new code
@@ -97,20 +91,20 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
                 count_test = chroma_collection_test.count()
                 if count_test > 0:
                     # Collection exists with data - delete it to force rebuild with new model
-                    logger.info(f"⚠️ Deleting existing collection to rebuild with new embedding model: {COLLECTION_NAME}")
+                    print(f"⚠️ Deleting existing collection to rebuild with new embedding model: {COLLECTION_NAME}")
                     db.delete_collection(COLLECTION_NAME)
                     force_reindex = True
             except Exception as e:
-                logger.warning(f"⚠️ Could not validate collection, rebuilding: {e}")
+                print(f"⚠️ Could not validate collection, rebuilding: {e}")
                 try:
                     db.delete_collection(COLLECTION_NAME)
                     force_reindex = True
                 except Exception as del_e:
-                    logger.error(f"Could not delete collection: {del_e}")
+                    print(f"Could not delete collection: {del_e}")
         
         # Vérification si la collection existe déjà
         if COLLECTION_NAME in existing_collections and not force_reindex:
-            logger.info(f"Loading existing collection: {COLLECTION_NAME}")
+            print(f"Loading existing collection: {COLLECTION_NAME}")
             # Utilisation de get_collection pour récupérer l'objet collection existant
             chroma_collection = db.get_collection(COLLECTION_NAME)
             globals()["CHROMA_COLLECTION_REF"] = chroma_collection
@@ -120,52 +114,52 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
             except Exception:
                 count = 0
             if count == 0:
-                logger.info(f"La collection existante '{COLLECTION_NAME}' est vide. Reconstruction de l'index...")
+                print(f"La collection existante '{COLLECTION_NAME}' est vide. Reconstruction de l'index...")
                 db.delete_collection(COLLECTION_NAME)
                 chroma_collection = db.get_or_create_collection(COLLECTION_NAME)
                 globals()["CHROMA_COLLECTION_REF"] = chroma_collection
                 vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-                logger.info(f"Loading documents from {data_dir}...")
+                print(f"Loading documents from {data_dir}...")
                 documents = SimpleDirectoryReader(input_dir=data_dir).load_data()
-                logger.info(f"Creating index from {len(documents)} documents...")
+                print(f"Creating index from {len(documents)} documents...")
                 index = VectorStoreIndex.from_documents(documents, vector_store=vector_store)
-                logger.info("Index created successfully")
+                print("Index created successfully")
             else:
-                logger.info(f"Chargement de la collection existante: {COLLECTION_NAME} (documents: {count})")
+                print(f"Chargement de la collection existante: {COLLECTION_NAME} (documents: {count})")
                 vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
                 index = VectorStoreIndex.from_vector_store(vector_store)
             
         else:
             if force_reindex and COLLECTION_NAME in existing_collections:
-                logger.info(f"Réindexation forcée activée. Suppression de la collection existante: {COLLECTION_NAME}")
+                print(f"Réindexation forcée activée. Suppression de la collection existante: {COLLECTION_NAME}")
                 db.delete_collection(COLLECTION_NAME)
-            logger.info(f"Création et indexation de la nouvelle collection: {COLLECTION_NAME}")
+            print(f"Création et indexation de la nouvelle collection: {COLLECTION_NAME}")
             
             # 1. Chargement des données
-            logger.info(f"Loading documents from {data_dir}...")
+            print(f"Loading documents from {data_dir}...")
             documents = SimpleDirectoryReader(input_dir=data_dir).load_data()
-            logger.info(f"Loaded {len(documents)} documents")
+            print(f"Loaded {len(documents)} documents")
             
             # 2. Configuration du Vector Store ChromaDB
             # Utilisation de get_or_create_collection pour robustesse
-            logger.info("Creating Chroma collection...")
+            print("Creating Chroma collection...")
             chroma_collection = db.get_or_create_collection(COLLECTION_NAME)
             globals()["CHROMA_COLLECTION_REF"] = chroma_collection
             vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
             
             # 3. Création de l'index
-            logger.info("Creating VectorStoreIndex from documents...")
+            print("Creating VectorStoreIndex from documents...")
             index = VectorStoreIndex.from_documents(
                 documents,
                 vector_store=vector_store
             )
-            logger.info("Index created successfully")
+            print("Index created successfully")
             
         # Retour de l'objet index, qu'il ait été chargé ou créé
         return index
 
     except Exception as e:
-        logger.error(f"Une erreur s'est produite lors de la configuration de l'index: {e}", exc_info=True)
+        print(f"Une erreur s'est produite lors de la configuration de l'index: {e}", exc_info=True)
         import traceback
         traceback.print_exc()
         return None
