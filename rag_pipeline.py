@@ -22,7 +22,7 @@ os.environ.setdefault("GOOGLE_API_KEY", gemini_key)
 
 # Définition des modèles à utiliser
 LLM_MODEL = "gemini-2.5-flash"
-EMBED_MODEL = "gemini-embedding-001"  # FIXED: Correct Google embedding model as of Feb 2026
+EMBED_MODEL = "models/gemini-embedding-001"  # Use fully qualified model name for Google Generative AI
 COLLECTION_NAME = "cv_rag_collection"
 
 # Configuration du chunking pour une meilleure récupération sur les CV
