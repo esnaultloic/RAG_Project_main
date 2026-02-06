@@ -26,7 +26,7 @@ genai.configure(api_key=gemini_key)
 
 # Définition des modèles à utiliser
 LLM_MODEL = "gemini-2.5-flash"
-EMBED_MODEL = "models/embedding-001"  # Correct model name for Google API
+EMBED_MODEL = "embedding-001"  # Google Generative AI embedding model for 2026
 COLLECTION_NAME = "cv_rag_collection"
 
 # Configuration du chunking pour une meilleure récupération sur les CV
