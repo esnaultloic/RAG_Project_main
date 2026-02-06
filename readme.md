@@ -4,7 +4,7 @@ Assistant RAG déployé qui répond aux questions des recruteurs à partir de do
 
 ### Caractéristiques
 - Récupération sémantique sur les PDF placés dans `data/`
-- LLM: Gemini 2.5 Flash, Embeddings: text-embedding-004
+- LLM: Gemini 2.5 Flash, Embeddings: text-embedding-001
 - Stockage: ChromaDB (dossier `./chroma_db`)
 - Application Web: Streamlit (`app.py`)
 - Top-k fixé à 4 pour des réponses robustes
