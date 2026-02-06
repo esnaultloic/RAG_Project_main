@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 from dotenv import load_dotenv
+import shutil
 
 # Chargement des variables d'environnement tôt (pour les exécutions locales)
 load_dotenv()
@@ -10,14 +11,26 @@ st.set_page_config(page_title="Loïc Esnault — Data Scientist / AI Engineer", 
 st.title("Loïc Esnault — Data Scientist / AI Engineer")
 st.caption("Posez une question sur mon profil. Les réponses sont ancrées dans mon CV indexé (RAG).")
 
+# IMPORTANT: Force clean database on startup to avoid stale embeddings from deprecated models
+# This ensures Chroma rebuilds with the current embedding model
+try:
+    chroma_path = "./chroma_db"
+    if os.path.exists(chroma_path):
+        # Check if we need to rebuild (old embeddings from text-embedding-004)
+        # For safety, always delete and rebuild to ensure compatibility
+        shutil.rmtree(chroma_path)
+        st.info("🔄 Rebuilt embedding index with current model. Ready to process your question.")
+except Exception as e:
+    st.warning(f"Could not clean database: {e}")
+
 # Import après le chargement de l'environnement pour que rag_pipeline récupère les clés
 from rag_pipeline import setup_rag_index, query_rag, get_collection_count
 
 
 @st.cache_resource(show_spinner=True)
 def get_index():
-    # Ne pas forcer la réindexation dans l'app; conserver la collection existante
-    return setup_rag_index()
+    # Force rebuild with fresh database
+    return setup_rag_index(force_reindex=True)
 
 
 index = get_index()
@@ -50,5 +63,6 @@ if ask:
             st.write(answer)
         except Exception as e:
             st.error(f"Erreur pendant la requête: {e}")
+
 
 
