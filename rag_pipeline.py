@@ -2,8 +2,8 @@ import os
 import argparse
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
 from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.embeddings import BaseEmbedding
 from llama_index.llms.google_genai import GoogleGenAI
-from llama_index.embeddings.base import BaseEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
 from dotenv import load_dotenv
