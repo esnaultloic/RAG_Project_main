@@ -44,6 +44,26 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
         # Récupération de la liste des noms de collections existantes
         existing_collections = [c.name for c in db.list_collections()]
         
+        # FORCE REINDEX: Delete old collection to ensure compatibility with new embedding model
+        # This prevents using old embeddings with new code
+        if COLLECTION_NAME in existing_collections:
+            # Check if collection was created with old embedding model by trying to count
+            try:
+                chroma_collection_test = db.get_collection(COLLECTION_NAME)
+                count_test = chroma_collection_test.count()
+                if count_test > 0:
+                    # Collection exists with data - delete it to force rebuild with new model
+                    print(f"⚠️ Deleting existing collection to rebuild with new embedding model: {COLLECTION_NAME}")
+                    db.delete_collection(COLLECTION_NAME)
+                    force_reindex = True
+            except Exception as e:
+                print(f"⚠️ Could not validate collection, rebuilding: {e}")
+                try:
+                    db.delete_collection(COLLECTION_NAME)
+                    force_reindex = True
+                except:
+                    pass
+        
         # Vérification si la collection existe déjà
         if COLLECTION_NAME in existing_collections and not force_reindex:
             # Utilisation de get_collection pour récupérer l'objet collection existant
