@@ -3,10 +3,11 @@ import argparse
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.llms.google_genai import GoogleGenAI
-from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
+from llama_index.embeddings.base import BaseEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
 from dotenv import load_dotenv
+import google.generativeai as genai
 
 # Chargement des variables d'environnement depuis le fichier .env
 load_dotenv()
@@ -20,17 +21,46 @@ if not gemini_key:
 # GoogleGenAI de LlamaIndex attend GOOGLE_API_KEY si non fournie explicitement. Assurer le mapping.
 os.environ.setdefault("GOOGLE_API_KEY", gemini_key)
 
+# Configure Google Generative AI directly
+genai.configure(api_key=gemini_key)
+
 # Définition des modèles à utiliser
 LLM_MODEL = "gemini-2.5-flash"
-EMBED_MODEL = "gemini-embedding-001"
+EMBED_MODEL = "models/embedding-001"  # Correct model name for Google API
 COLLECTION_NAME = "cv_rag_collection"
 
 # Configuration du chunking pour une meilleure récupération sur les CV
 Settings.node_parser = SentenceSplitter(chunk_size=800, chunk_overlap=120)
 
-# Initialisation du LLM et du modèle d'embedding (passage explicite de la clé pour robustesse)
+# Custom embedding class using Google Generative AI directly (bypasses llama-index bug)
+class GoogleGenAIDirectEmbedding(BaseEmbedding):
+    """Direct embedding using google.generativeai to bypass llama-index model name bug"""
+    
+    def __init__(self, model_name: str = "models/embedding-001", **kwargs):
+        super().__init__(**kwargs)
+        self.model_name = model_name
+    
+    def _get_query_embedding(self, query: str):
+        """Get embedding for a single query"""
+        response = genai.embed_content(model=self.model_name, content=query)
+        return response['embedding']
+    
+    def _get_text_embedding(self, text: str):
+        """Get embedding for a single text"""
+        response = genai.embed_content(model=self.model_name, content=text)
+        return response['embedding']
+    
+    async def _aget_query_embedding(self, query: str):
+        """Async version (same as sync for now)"""
+        return self._get_query_embedding(query)
+    
+    async def _aget_text_embedding(self, text: str):
+        """Async version (same as sync for now)"""
+        return self._get_text_embedding(text)
+
+# Initialisation du LLM et du modèle d'embedding CUSTOM (bypass llama-index bug)
 Settings.llm = GoogleGenAI(model=LLM_MODEL, api_key=gemini_key)
-Settings.embed_model = GoogleGenAIEmbedding(model=EMBED_MODEL, api_key=gemini_key)
+Settings.embed_model = GoogleGenAIDirectEmbedding(model_name=EMBED_MODEL)
 
 # Configuration ChromaDB
 db = chromadb.PersistentClient(path="./chroma_db")  # Stocke la base de données localement dans un dossier
