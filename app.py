@@ -20,10 +20,7 @@ def get_index():
     return setup_rag_index()
 
 
-index = get_index()
-if index is None:
-    st.error("RAG non initialisé. Vérifiez la clé API et la collection Chroma.")
-    st.stop()
+st.caption("L'index est initialisé à la première question et réutilisé ensuite.")
 
 question = st.text_area(
     "Posez une question sur mon profil",
@@ -44,6 +41,10 @@ if ask:
 
     with st.spinner("Génération de la réponse..."):
         try:
+            index = get_index()
+            if index is None:
+                st.error("Initialisation RAG impossible pour le moment. Réessayez dans quelques secondes.")
+                st.stop()
             # Réponse simple, top_k fixé à 4
             answer = query_rag(question, show_context=False, index=index, similarity_top_k=FIXED_TOP_K)
             st.subheader("Réponse")

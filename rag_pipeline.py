@@ -4,6 +4,7 @@ import os
 os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 
 import argparse
+import time
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.embeddings import BaseEmbedding
@@ -27,11 +28,14 @@ os.environ["GOOGLE_API_KEY"] = gemini_key
 os.environ.pop("GEMINI_API_KEY", None)
 
 GENAI_CLIENT = genai.Client(api_key=gemini_key)
+SETTINGS_INITIALIZED = False
 
 # Définition des modèles à utiliser
 LLM_MODEL = "gemini-2.5-flash"
 EMBED_MODEL = "gemini-embedding-001"
 COLLECTION_NAME = "cv_rag_collection"
+EMBED_MAX_RETRIES = 5
+EMBED_RETRY_DELAY_SECONDS = 2
 
 # Configuration du chunking pour une meilleure récupération sur les CV
 Settings.node_parser = SentenceSplitter(chunk_size=800, chunk_overlap=120)
@@ -46,15 +50,41 @@ class GoogleGenAIDirectEmbedding(BaseEmbedding):
         super().__init__(**kwargs)
         self.model_name = model_name
 
+    def _embed_with_retry(self, contents):
+        last_error = None
+        for attempt in range(1, EMBED_MAX_RETRIES + 1):
+            try:
+                response = GENAI_CLIENT.models.embed_content(
+                    model=self.model_name,
+                    contents=contents,
+                )
+                embeddings = getattr(response, "embeddings", None) or []
+                if not embeddings:
+                    raise ValueError("No embedding returned by Google GenAI.")
+                return embeddings
+            except Exception as error:
+                last_error = error
+                status_code = getattr(error, "status_code", None)
+                is_retryable = status_code in {429, 500, 503, 504}
+                if not is_retryable or attempt == EMBED_MAX_RETRIES:
+                    raise
+                wait_seconds = EMBED_RETRY_DELAY_SECONDS * attempt
+                print(
+                    f"Embedding attempt {attempt}/{EMBED_MAX_RETRIES} failed with status {status_code}. "
+                    f"Retrying in {wait_seconds}s..."
+                )
+                time.sleep(wait_seconds)
+        raise last_error
+
     def _extract_embedding_values(self, text: str):
-        response = GENAI_CLIENT.models.embed_content(
-            model=self.model_name,
-            contents=text,
-        )
-        embeddings = getattr(response, "embeddings", None) or []
-        if not embeddings:
-            raise ValueError("No embedding returned by Google GenAI.")
+        embeddings = self._embed_with_retry(text)
         return embeddings[0].values
+
+    def _get_text_embeddings(self, texts):
+        embeddings = self._embed_with_retry(texts)
+        if len(embeddings) != len(texts):
+            raise ValueError("Embedding response size does not match request size.")
+        return [embedding.values for embedding in embeddings]
     
     def _get_query_embedding(self, query: str):
         """Get embedding for a single query"""
@@ -72,9 +102,14 @@ class GoogleGenAIDirectEmbedding(BaseEmbedding):
         """Async version (same as sync for now)"""
         return self._get_text_embedding(text)
 
-# Initialisation du LLM et du modèle d'embedding custom
-Settings.llm = GoogleGenAI(model=LLM_MODEL, api_key=gemini_key)
-Settings.embed_model = GoogleGenAIDirectEmbedding(model_name=EMBED_MODEL)
+def ensure_rag_settings():
+    """Initialise les composants Gemini uniquement au moment où ils sont requis."""
+    global SETTINGS_INITIALIZED
+    if SETTINGS_INITIALIZED:
+        return
+    Settings.llm = GoogleGenAI(model=LLM_MODEL, api_key=gemini_key)
+    Settings.embed_model = GoogleGenAIDirectEmbedding(model_name=EMBED_MODEL)
+    SETTINGS_INITIALIZED = True
 
 # Configuration ChromaDB
 db = chromadb.PersistentClient(path="./chroma_db")  # Stocke la base de données localement dans un dossier
@@ -84,7 +119,9 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
     """
     Charge les documents du répertoire data et crée/charge l'index RAG.
     """
+    rebuilding_collection = False
     try:
+        ensure_rag_settings()
         # Récupération de la liste des noms de collections existantes
         existing_collections = [c.name for c in db.list_collections()]
         
@@ -101,6 +138,7 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
                 count = 0
             if count == 0:
                 print(f"La collection existante '{COLLECTION_NAME}' est vide. Reconstruction de l'index...")
+                rebuilding_collection = True
                 db.delete_collection(COLLECTION_NAME)
                 chroma_collection = db.get_or_create_collection(COLLECTION_NAME)
                 globals()["CHROMA_COLLECTION_REF"] = chroma_collection
@@ -119,6 +157,7 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
             if force_reindex and COLLECTION_NAME in existing_collections:
                 print(f"Réindexation forcée activée. Suppression de la collection existante: {COLLECTION_NAME}")
                 db.delete_collection(COLLECTION_NAME)
+            rebuilding_collection = True
             print(f"Création et indexation de la nouvelle collection: {COLLECTION_NAME}")
             
             # 1. Chargement des données
@@ -145,7 +184,12 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
         return index
 
     except Exception as e:
-        print(f"Une erreur s'est produite lors de la configuration de l'index: {e}", exc_info=True)
+        if rebuilding_collection:
+            try:
+                db.delete_collection(COLLECTION_NAME)
+            except Exception:
+                pass
+        print(f"Une erreur s'est produite lors de la configuration de l'index: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -199,6 +243,7 @@ def query_rag(prompt: str, show_context: bool = True, index=None, similarity_top
     :return: La réponse du LLM ancrée dans le document.
     """
     # Préférer l'index fourni; sinon utiliser le global; en dernier recours, essayer d'initialiser
+    ensure_rag_settings()
     active_index = index or RAG_INDEX
     if active_index is None:
         active_index = setup_rag_index()
