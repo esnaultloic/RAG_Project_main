@@ -7,56 +7,58 @@ from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 
 # Chargement des variables d'environnement depuis le fichier .env
 load_dotenv()
 
 # --- Configuration ---
-# La clé API Gemini doit être définie comme variable d'environnement (GEMINI_API_KEY)
-gemini_key = os.getenv("GEMINI_API_KEY")
+# La clé API peut être fournie via GEMINI_API_KEY ou GOOGLE_API_KEY.
+gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 if not gemini_key:
-    raise ValueError("GEMINI_API_KEY environment variable not found.")
+    raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY environment variable not found.")
 
-# GoogleGenAI de LlamaIndex attend GOOGLE_API_KEY si non fournie explicitement. Assurer le mapping.
-os.environ.setdefault("GOOGLE_API_KEY", gemini_key)
+# Normaliser les variables pour éviter l'avertissement du SDK quand les deux sont définies.
+os.environ["GOOGLE_API_KEY"] = gemini_key
+os.environ.pop("GEMINI_API_KEY", None)
 
-# Configure Google Generative AI with API key
-genai.configure(api_key=gemini_key)
+GENAI_CLIENT = genai.Client(api_key=gemini_key)
 
 # Définition des modèles à utiliser
 LLM_MODEL = "gemini-2.5-flash"
-EMBED_MODEL = "models/gemini-embedding-001"  # Current Google embedding model
+EMBED_MODEL = "gemini-embedding-001"
 COLLECTION_NAME = "cv_rag_collection"
 
 # Configuration du chunking pour une meilleure récupération sur les CV
 Settings.node_parser = SentenceSplitter(chunk_size=800, chunk_overlap=120)
 
-# Custom embedding class using Google Generative AI directly (bypasses llama-index bug)
+# Custom embedding class using Google GenAI directly
 class GoogleGenAIDirectEmbedding(BaseEmbedding):
-    """Direct embedding using google.generativeai to bypass llama-index model name bug"""
+    """Direct embedding using google.genai."""
     
     model_config = {"extra": "allow"}  # Allow extra fields
     
-    def __init__(self, model_name: str = "models/embedding-001", **kwargs):
+    def __init__(self, model_name: str = "gemini-embedding-001", **kwargs):
         super().__init__(**kwargs)
         self.model_name = model_name
+
+    def _extract_embedding_values(self, text: str):
+        response = GENAI_CLIENT.models.embed_content(
+            model=self.model_name,
+            contents=text,
+        )
+        embeddings = getattr(response, "embeddings", None) or []
+        if not embeddings:
+            raise ValueError("No embedding returned by Google GenAI.")
+        return embeddings[0].values
     
     def _get_query_embedding(self, query: str):
         """Get embedding for a single query"""
-        result = genai.embed_content(
-            model=self.model_name,
-            content=query
-        )
-        return result['embedding']
+        return self._extract_embedding_values(query)
     
     def _get_text_embedding(self, text: str):
         """Get embedding for a single text"""
-        result = genai.embed_content(
-            model=self.model_name,
-            content=text
-        )
-        return result['embedding']
+        return self._extract_embedding_values(text)
     
     async def _aget_query_embedding(self, query: str):
         """Async version (same as sync for now)"""
@@ -66,7 +68,7 @@ class GoogleGenAIDirectEmbedding(BaseEmbedding):
         """Async version (same as sync for now)"""
         return self._get_text_embedding(text)
 
-# Initialisation du LLM et du modèle d'embedding CUSTOM (bypass llama-index bug)
+# Initialisation du LLM et du modèle d'embedding custom
 Settings.llm = GoogleGenAI(model=LLM_MODEL, api_key=gemini_key)
 Settings.embed_model = GoogleGenAIDirectEmbedding(model_name=EMBED_MODEL)
 
