@@ -26,7 +26,7 @@ genai.configure(api_key=gemini_key)
 
 # Définition des modèles à utiliser
 LLM_MODEL = "gemini-2.5-flash"
-EMBED_MODEL = "gemini-embedding-001"  # Current Google embedding model (Feb 2026)
+EMBED_MODEL = "models/gemini-embedding-001"  # Current Google embedding model
 COLLECTION_NAME = "cv_rag_collection"
 
 # Configuration du chunking pour une meilleure récupération sur les CV
@@ -81,26 +81,6 @@ def setup_rag_index(data_dir: str = "data", force_reindex: bool = False):
     try:
         # Récupération de la liste des noms de collections existantes
         existing_collections = [c.name for c in db.list_collections()]
-        
-        # FORCE REINDEX: Delete old collection to ensure compatibility with new embedding model
-        # This prevents using old embeddings with new code
-        if COLLECTION_NAME in existing_collections:
-            # Check if collection was created with old embedding model by trying to count
-            try:
-                chroma_collection_test = db.get_collection(COLLECTION_NAME)
-                count_test = chroma_collection_test.count()
-                if count_test > 0:
-                    # Collection exists with data - delete it to force rebuild with new model
-                    print(f"⚠️ Deleting existing collection to rebuild with new embedding model: {COLLECTION_NAME}")
-                    db.delete_collection(COLLECTION_NAME)
-                    force_reindex = True
-            except Exception as e:
-                print(f"⚠️ Could not validate collection, rebuilding: {e}")
-                try:
-                    db.delete_collection(COLLECTION_NAME)
-                    force_reindex = True
-                except Exception as del_e:
-                    print(f"Could not delete collection: {del_e}")
         
         # Vérification si la collection existe déjà
         if COLLECTION_NAME in existing_collections and not force_reindex:
