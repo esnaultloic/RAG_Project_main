@@ -1,4 +1,8 @@
 import os
+
+# Workaround for protobuf/OpenTelemetry incompatibilities seen on Streamlit Cloud.
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
 import argparse
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
 from llama_index.core.node_parser import SentenceSplitter
