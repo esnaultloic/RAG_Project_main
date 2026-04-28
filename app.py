@@ -24,7 +24,7 @@ st.caption("L'index est initialisé à la première question et réutilisé ensu
 
 question = st.text_area(
     "Posez une question sur mon profil",
-    value="Quelles sont les outils que Loïc a utilisé dans ses expériences professionnelles, sa formation et sa certification ?",
+    value="Quels sont les outils que Loïc a utilisés dans ses expériences professionnelles, sa formation et sa certification ?",
     height=100,
     placeholder="Ex: Quelles expériences ai-je en machine learning ?",
 )
